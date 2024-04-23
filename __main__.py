@@ -1,4 +1,6 @@
-webhook_channel = "webhook link"
+
+#utils
+webhook_channel ="https://discord.com/api/webhook...."
 webhook = False 
 hitoya = 1200330195387813903
 
@@ -6,6 +8,7 @@ hitoya = 1200330195387813903
 
 
 import requests
+from threading import Thread
 import json
 import time
 #import pathlib
@@ -22,22 +25,21 @@ a = True
 data_dir = "data.json"
 
 
-def check_server_data(guild:int) -> bool:
-	guild=str(guild)
-	if guild not in data['Guild_data']:
-		data["Guild_data"][guild] = {
-			"name" : server.name,
+def check_server_data(guild) -> bool:
+	id=str(guild.id)
+	if id not in data['Guild_data']:
+		data["Guild_data"][id] = {
+			"name" : guild.name,
 			"wlcm_chnl" : 0,
 			"exit_chnl" : 0,
 			"wlcm_msg" : "elo {member.mention} welcome to {member.guild.name}",
 			"exit_msg" : "{member.name} exits the server",
-			"to_dm?" : False,
-			"chat_speed" : 0
+			"to_dm?" : False
 		}
 		return False
 	return True
 	
-			
+
 
 
 def data_save():
@@ -67,7 +69,7 @@ async def on_ready():
 	print("here are the server list\n")
 	for server in bot.guilds:
 		print(" "+server.name)
-		check_server_data(server.id)
+		check_server_data(server)
 	data_save()
 
 
@@ -76,6 +78,7 @@ async def on_ready():
 		cmndsLis = await bot.tree.sync()
 		print(f"\nsync {len(cmndsLis)} commands")
 		print("here are the commands\n"+"\n".join(map(lambda x:" "+str(x),cmndsLis)))
+		SAVE.start()
 
 	await bot.change_presence(status=discord.Status.dnd)
 
@@ -145,13 +148,21 @@ async def on_message(message):
 	
 	
 	
-	if  sender.id not in data["User_data"]:
+	if  str(sender.id) not in data["User_data"]:
 		data['User_data'][str(sender.id)] = {"name":sender.name,
-																		  "last_msg_time":0,
-																		  "mgs_spd_wrng_lvl":0,
-																		  "last_time_got_wrng":0}
+																		  "num_of_total_chat":0,
+																		  str(guildId):{
+																		  	"num_of_chat":0
+																		  	}
+																		  }
+		message.reply("hey "+sender.mention+" you have reached level 1")
+	else:
+		if str(guildId) not in data["User_data"][str(sender.id)]:
+			data["User_data"][str(sender.id)][str(guildId)] = {"num_of_chat":0}
+		else:
+			data['User_data'][str(sender.id)][str(guildId)]["num_of_chat"] +=1
 	
-	
+	"""
 	old_time= data['User_data'][str(sender.id)]["last_msg_time"]
 	wrng_lvl = data['User_data'][str(sender.id)]["mgs_spd_wrng_lvl"]
 	last_time_got_wrng = data['User_data'][str(sender.id)]["last_time_got_wrng"]
@@ -175,19 +186,36 @@ async def on_message(message):
 	elif time.time()-last_time_got_wrng >= 24*60*60 and wrng_lvl <= 3:
 		data['User_data'][str(sender.id)]["mgs_spd_wrng_lvl"] = 0
 	
-	
 	data['User_data'][str(sender.id)]["last_msg_time"] = time.time()
 	print(f"{time.time()-last_time_got_wrng = }")
+"""
 	
 	
 	
-	
-	#donr touch
+	#dont touch
 	if not check_server_data(message.guild.id):
 		await message.channel.send("hmmm seems this server is not yet recognize leme load it on my data base")
-	data_save()
+	
 	#await bot.process_commands(message)
 
+@bot.event
+async def on_guild_join(guild):
+    print(f'Bot joined a new server: {guild.name} (ID: {guild.id})')
+
+    # Try to find a channel named 'general'
+    general_channel = discord.utils.get(guild.channels, name='general')
+
+    # If 'general' channel exists, send welcome message there
+    if general_channel:
+        await general_channel.send(f"Thanks for adding me to {guild.name}! I'm here to assist.")
+    else:
+        # If 'general' channel doesn't exist, find the first available text channel
+        available_channel = discord.utils.get(guild.text_channels, type=discord.ChannelType.text)
+    
+        # If there is at least one text channel, send a welcome message
+        if available_channel:
+            await available_channel.send(f"Thanks for adding me to {guild.name}! I'm here to assist.")
+    check_server_data()
 @bot.event
 async def on_member_join(member):
 	guild=str(member.guild.id)
@@ -251,6 +279,7 @@ async def say(interaction: discord.Interaction,recipient:discord.Member,channel:
 async def ello(interaction: discord.Interaction):
 	await interaction.response.send_message('ello '+interaction.user.mention, ephemeral=True)
 
+"""
 @bot.tree.command(name="set_chat_speed", description="only for user with \"admin\" role")
 async def set_speed(interaction:discord.Interaction,max_chat_per_min:float = float("inf")):
 	guild = str(interaction.guild.id)
@@ -262,7 +291,7 @@ async def set_speed(interaction:discord.Interaction,max_chat_per_min:float = flo
 	
 	data_save()
 	await interaction.response.send_message(interaction.user.mention+f" new chat speed is set to {max_chat_per_min} per sec",ephemeral=True)
-	
+"""
 
 @bot.tree.command(name="set_welcome_message", description="only for user with \"admin\" role")
 async def wlcm_msg(interaction:discord.Interaction,message:str="elo {member.name.mention} welcome to {member.guild.name}"):
@@ -326,3 +355,15 @@ for dat in ("Guild_data","User_data","Self_data"):
 		if dat not in data:
 			data[dat]={}
 data_save()
+
+def Dsave():
+	while True:
+		data_save()
+		time.sleep(5)
+		
+
+
+SAVE = Thread(target=Dsave)
+
+
+bot.run(Token)
